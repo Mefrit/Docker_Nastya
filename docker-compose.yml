@@ -1,0 +1,169 @@
+version: '3'
+services:
+
+    gitbucket:
+        restart: 'no'
+        # image: dunkelfrosch/bitbucket
+        build: ./gitbucket-docker
+        ports:
+            - "8080:8080"
+            - "29418:29418"
+        
+        privileged: false
+        stdin_open: true
+        tty: true
+
+
+
+        # taiga
+    back:
+        image: dockertaiga/back:5.0.12
+        container_name: taiga-back
+        restart: unless-stopped
+        depends_on:
+          - db
+          - events
+        networks:
+          - default
+        volumes:
+          - ./data/media:/taiga-media
+          - ./conf/back:/taiga-conf
+        env_file:
+          - ./taiga/variables.env
+    
+    front:
+        image: dockertaiga/front:5.0.12
+        container_name: taiga-front
+        restart: unless-stopped
+        networks:
+          - default
+        volumes:
+          - ./conf/front:/taiga-conf
+        env_file:
+          - ./taiga/variables.env
+    
+    db:
+        image: postgres:11-alpine
+        container_name: taiga-db
+        restart: unless-stopped
+        networks:
+          - default
+        env_file:
+          - ./taiga/variables.env
+        volumes:
+          - ./data/db:/var/lib/postgresql/data
+    
+    rabbit:
+        image: dockertaiga/rabbit
+        container_name: taiga-rabbit
+        restart: unless-stopped
+        networks:
+          - default
+        env_file:
+          - ./taiga/variables.env
+    
+    redis:
+        image: bitnami/redis:5.0
+        container_name: taiga-redis
+        networks:
+          - default
+        env_file:
+          - ./taiga/variables.env
+    
+    events:
+        image: dockertaiga/events
+        container_name: taiga-events
+        restart: unless-stopped
+        depends_on:
+          - rabbit
+        networks:
+          - default
+        env_file:
+          - ./taiga/variables.env
+    
+    proxy:
+        image: dockertaiga/proxy
+        container_name: taiga-proxy
+        restart: unless-stopped
+        depends_on:
+          - back
+          - front
+          - events
+        networks:
+          - default
+        ports:
+          - 8084:80
+          - 443:443
+        volumes:
+          #- ./cert:/taiga-cert
+          - ./conf/proxy:/taiga-conf
+        env_file:
+          - ./taiga/variables.env
+    
+
+
+          
+    # concourse
+    # db:
+    #     image: postgres
+    #     environment:
+    #         POSTGRES_DB: concourse
+    #         POSTGRES_USER: concourse_user
+    #         POSTGRES_PASSWORD: concourse_pass
+    #     logging:
+    #         driver: "json-file"
+    #         options:
+    #             max-file: "5"
+    #             max-size: "10m"
+        
+    # web:
+    #     image: concourse/concourse
+    #     command: web
+    #     links: [db]
+    #     depends_on: [db]
+    #     ports: ["8080:8080"]
+    #     volumes: ["./keys/web:/concourse-keys"]
+    #     environment:
+    #         CONCOURSE_EXTERNAL_URL: http://localhost:8080
+    #         CONCOURSE_POSTGRES_HOST: db
+    #         CONCOURSE_POSTGRES_USER: concourse_user
+    #         CONCOURSE_POSTGRES_PASSWORD: concourse_pass
+    #         CONCOURSE_POSTGRES_DATABASE: concourse
+    #         CONCOURSE_ADD_LOCAL_USER: test:test
+    #         CONCOURSE_MAIN_TEAM_LOCAL_USER: test
+    #         TSA_HOST_KEY: a
+    #         CONCOURSE_WORKER_TSA_WORKER_PRIVATE_KEY: a
+    #     logging:
+    #         driver: "json-file"
+    #         options:
+    #             max-file: "5"
+    #             max-size: "10m"
+    
+    # worker:
+    #     image: concourse/concourse
+    #     command: worker
+    #     privileged: true
+    #     depends_on: [ web]
+    #     volumes: ["./keys/worker:/concourse-keys"]
+    #     links: [ web]
+    #     stop_signal: SIGUSR2
+    #     environment:
+    #         CONCOURSE_TSA_HOST: web:2222
+    #         CONCOURSE_WORKER_TSA_WORKER_PRIVATE_KEY: auto
+    #     logging:
+    #         driver: "json-file"
+    #         options:
+    #             max-file: "5"
+    #             max-size: "10m"
+
+        
+            
+    
+networks:
+    default:
+volumes:
+    
+    postgres_data: {}
+    postgres_backup: {}
+    taiga_backend_media: {}
+
